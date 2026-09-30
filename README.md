@@ -19,6 +19,8 @@
 
 ```bash
 npm install
+npm run dev       # интерфейс на http://localhost:5173
+npm run build     # сборка в dist/
 npm test          # Vitest
 npm run typecheck # tsc
 ```
