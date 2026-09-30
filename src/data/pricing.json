@@ -1,0 +1,125 @@
+{
+  "updated": "2026-09-30",
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "currency": "USD",
+  "unit": "per 1M tokens",
+  "batchDiscount": 0.5,
+  "effortOutputMultipliers": {
+    "_note": "Оценка, не тариф Anthropic. Базой считается high = 1.0: размеры задач заданы для effort high.",
+    "low": 0.4,
+    "medium": 0.7,
+    "high": 1.0,
+    "xhigh": 1.5,
+    "max": 2.2
+  },
+  "sizes": {
+    "S": { "label": "Маленькая", "input": 5000, "output": 1000 },
+    "M": { "label": "Средняя", "input": 30000, "output": 5000 },
+    "L": { "label": "Большая", "input": 150000, "output": 20000 },
+    "XL": { "label": "Очень большая", "input": 500000, "output": 60000 }
+  },
+  "models": [
+    {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "input": 10,
+      "output": 50,
+      "cacheRead": 0.25,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-fable-5",
+      "name": "Claude Fable 5",
+      "input": 10,
+      "output": 50,
+      "cacheRead": 1,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-opus-5-5",
+      "name": "Claude Opus 5.5",
+      "input": 4,
+      "output": 20,
+      "cacheRead": 0.2,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "medium",
+      "fast": { "input": 8, "output": 40 }
+    },
+    {
+      "id": "claude-opus-5",
+      "name": "Claude Opus 5",
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high",
+      "fast": { "input": 10, "output": 50 }
+    },
+    {
+      "id": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high",
+      "fast": { "input": 10, "output": 50 }
+    },
+    {
+      "id": "claude-opus-4-7",
+      "name": "Claude Opus 4.7",
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-opus-4-6",
+      "name": "Claude Opus 4.6",
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "efforts": ["low", "medium", "high", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "name": "Claude Sonnet 5.5",
+      "input": 2,
+      "output": 10,
+      "cacheRead": 0.2,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "input": 2,
+      "output": 10,
+      "cacheRead": 0.2,
+      "efforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
+      "input": 3,
+      "output": 15,
+      "cacheRead": 0.3,
+      "efforts": ["low", "medium", "high", "max"],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "name": "Claude Haiku 4.5",
+      "input": 1,
+      "output": 5,
+      "cacheRead": 0.1,
+      "efforts": [],
+      "defaultEffort": null
+    }
+  ]
+}
