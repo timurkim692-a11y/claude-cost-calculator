@@ -2,9 +2,12 @@ import {
   EFFORT_MULTIPLIERS,
   MODELS,
   SIZES,
+  compareModels,
   estimateCost,
   getModel,
+  type CostEstimate,
   type Effort,
+  type EstimateOptions,
   type SizeId,
   type Tokens,
 } from "../pricing";
@@ -17,6 +20,11 @@ interface State {
   effort: Effort | null;
   size: SizeChoice;
   custom: { input: string; output: string };
+  /** Доля входа из кэша в процентах. */
+  cache: number;
+  batch: boolean;
+  fast: boolean;
+  runs: string;
 }
 
 const EFFORT_HINTS: Record<Effort, string> = {
@@ -36,6 +44,10 @@ export function mountApp(root: HTMLElement): void {
     effort: initial.defaultEffort,
     size: "M",
     custom: { input: String(SIZES.M.input), output: String(SIZES.M.output) },
+    cache: 0,
+    batch: false,
+    fast: false,
+    runs: "1",
   };
 
   root.innerHTML = `
@@ -81,7 +93,7 @@ export function mountApp(root: HTMLElement): void {
                 <span><b>Своё</b><small>токены</small></span>
               </label>
             </div>
-            <div class="custom" id="custom" hidden>
+            <div class="pair" id="custom" hidden>
               <label>Вход, токенов
                 <input type="number" name="customInput" min="0" step="1000" inputmode="numeric" />
               </label>
@@ -91,10 +103,40 @@ export function mountApp(root: HTMLElement): void {
             </div>
             <p class="hint">Выход указан для effort high; другие уровни effort его масштабируют.</p>
           </fieldset>
+
+          <fieldset class="field">
+            <legend class="field-label">Опции</legend>
+            <label class="range">
+              <span class="range-head">Доля входа из кэша <output id="cache-value"></output></span>
+              <input type="range" name="cache" min="0" max="100" step="5" />
+            </label>
+            <div class="checks">
+              <label class="check">
+                <input type="checkbox" name="batch" />
+                <span><b>Batch API</b><small>−50% на всё, ответ в течение 24 ч</small></span>
+              </label>
+              <label class="check">
+                <input type="checkbox" name="fast" />
+                <span><b>Fast mode</b><small>до 2,5× быстрее, цена выше</small></span>
+              </label>
+            </div>
+            <p class="hint" id="options-hint"></p>
+            <div class="pair">
+              <label>Запусков задачи
+                <input type="number" name="runs" min="1" step="1" inputmode="numeric" />
+              </label>
+            </div>
+          </fieldset>
         </form>
 
         <section class="card result" id="result" aria-live="polite"></section>
       </div>
+
+      <section class="card compare">
+        <h2>Эта задача на всех моделях</h2>
+        <p class="hint">Те же размер, effort и опции. Нажмите на модель, чтобы выбрать её.</p>
+        <div id="compare"></div>
+      </section>
     </main>
   `;
 
@@ -103,14 +145,32 @@ export function mountApp(root: HTMLElement): void {
   const effortBox = form.querySelector<HTMLDivElement>("#effort")!;
   const effortHint = form.querySelector<HTMLParagraphElement>("#effort-hint")!;
   const customBox = form.querySelector<HTMLDivElement>("#custom")!;
-  const customInput = form.querySelector<HTMLInputElement>('[name="customInput"]')!;
-  const customOutput = form.querySelector<HTMLInputElement>('[name="customOutput"]')!;
+  const cacheInput = form.querySelector<HTMLInputElement>('[name="cache"]')!;
+  const cacheValue = form.querySelector<HTMLOutputElement>("#cache-value")!;
+  const batchInput = form.querySelector<HTMLInputElement>('[name="batch"]')!;
+  const fastInput = form.querySelector<HTMLInputElement>('[name="fast"]')!;
+  const optionsHint = form.querySelector<HTMLParagraphElement>("#options-hint")!;
   const result = root.querySelector<HTMLElement>("#result")!;
+  const compare = root.querySelector<HTMLDivElement>("#compare")!;
 
   modelSelect.value = state.modelId;
   form.querySelector<HTMLInputElement>(`[name="size"][value="${state.size}"]`)!.checked = true;
-  customInput.value = state.custom.input;
-  customOutput.value = state.custom.output;
+  form.querySelector<HTMLInputElement>('[name="customInput"]')!.value = state.custom.input;
+  form.querySelector<HTMLInputElement>('[name="customOutput"]')!.value = state.custom.output;
+  form.querySelector<HTMLInputElement>('[name="runs"]')!.value = state.runs;
+  cacheInput.value = String(state.cache);
+
+  function setModel(id: string): void {
+    state.modelId = id;
+    modelSelect.value = id;
+    const model = getModel(id);
+    // Выбранный effort сохраняем, если новая модель его поддерживает.
+    if (model.efforts.length === 0) state.effort = null;
+    else if (!state.effort || !model.efforts.includes(state.effort)) state.effort = model.defaultEffort;
+    if (!model.fast) state.fast = false;
+    renderEffort();
+    renderOptions();
+  }
 
   function renderEffort(): void {
     const model = getModel(state.modelId);
@@ -133,89 +193,203 @@ export function mountApp(root: HTMLElement): void {
       : "";
   }
 
+  function renderOptions(): void {
+    const model = getModel(state.modelId);
+    cacheValue.textContent = `${state.cache}%`;
+    batchInput.checked = state.batch;
+    fastInput.checked = state.fast;
+    batchInput.disabled = state.fast;
+    fastInput.disabled = !model.fast || state.batch;
+
+    const notes: string[] = [];
+    if (!model.fast) notes.push(`Fast mode есть только у Opus 5.5, Opus 5 и Opus 4.8.`);
+    else if (state.batch || state.fast) notes.push("Fast mode и Batch API несовместимы.");
+    if (state.fast) notes.push(`Fast mode: ${formatPrice(model.fast!.input)} / ${formatPrice(model.fast!.output)} за 1M.`);
+    optionsHint.textContent = notes.join(" ");
+  }
+
+  /** Токены задачи или текст ошибки ввода. */
   function currentTokens(): Tokens | string {
     if (state.size !== "custom") return SIZES[state.size];
-    const input = Number(state.custom.input);
-    const output = Number(state.custom.output);
     if (state.custom.input.trim() === "" || state.custom.output.trim() === "") {
       return "Укажите количество входных и выходных токенов.";
     }
+    const input = Number(state.custom.input);
+    const output = Number(state.custom.output);
     if (!Number.isFinite(input) || !Number.isFinite(output)) return "Введите числа.";
     return { input: Math.round(input), output: Math.round(output) };
   }
 
-  function renderResult(): void {
-    const tokens = currentTokens();
-    if (typeof tokens === "string") {
-      result.innerHTML = `<p class="error">${tokens}</p>`;
-      return;
+  function currentOptions(): EstimateOptions | string {
+    const runs = Number(state.runs);
+    if (state.runs.trim() === "" || !Number.isInteger(runs) || runs < 1) {
+      return "Количество запусков — целое число от 1.";
     }
-    let estimate;
-    try {
-      estimate = estimateCost({
-        modelId: state.modelId,
-        effort: state.effort ?? undefined,
-        size: tokens,
-      });
-    } catch (err) {
-      result.innerHTML = `<p class="error">${(err as Error).message}</p>`;
-      return;
-    }
+    return { cacheHitRate: state.cache / 100, batch: state.batch, fast: state.fast, runs };
+  }
+
+  function renderResult(estimate: CostEstimate): void {
     const model = getModel(state.modelId);
     const multiplier = estimate.effort ? EFFORT_MULTIPLIERS[estimate.effort] : 1;
-    const effortNote = estimate.effort
-      ? `effort ${estimate.effort} ×${multiplier}`
-      : "без effort";
+    const tags = [
+      estimate.effort ? `effort ${estimate.effort} ×${multiplier}` : "без effort",
+      state.cache > 0 ? `кэш ${state.cache}%` : "",
+      state.batch ? "Batch −50%" : "",
+      state.fast ? "Fast mode" : "",
+    ].filter(Boolean);
+    const perRun = estimate.cost.total / estimate.runs;
 
     result.innerHTML = `
-      <p class="result-label">Стоимость задачи</p>
+      <p class="result-label">${estimate.runs > 1 ? `Стоимость ${formatTokens(estimate.runs)} запусков` : "Стоимость задачи"}</p>
       <p class="total">${formatUsd(estimate.cost.total)}</p>
-      <p class="result-sub">${model.name} · ${effortNote}</p>
+      ${estimate.runs > 1 ? `<p class="per-run">${formatUsd(perRun)} за запуск</p>` : ""}
+      <p class="result-sub">${model.name}</p>
+      <ul class="tags">${tags.map((t) => `<li>${t}</li>`).join("")}</ul>
 
       <dl class="breakdown">
         <div>
           <dt>Вход</dt>
-          <dd class="calc">${formatTokens(estimate.tokens.input)} ток. × ${formatPrice(model.input)}/1M</dd>
+          <dd class="calc">${formatTokens(estimate.tokens.input)} ток. × ${formatPrice(estimate.prices.input)}/1M</dd>
           <dd class="sum">${formatUsd(estimate.cost.input)}</dd>
         </div>
+        ${
+          estimate.tokens.cachedInput > 0
+            ? `<div>
+          <dt>Вход из кэша</dt>
+          <dd class="calc">${formatTokens(estimate.tokens.cachedInput)} ток. × ${formatPrice(estimate.prices.cachedInput)}/1M</dd>
+          <dd class="sum">${formatUsd(estimate.cost.cachedInput)}</dd>
+        </div>`
+            : ""
+        }
         <div>
           <dt>Выход</dt>
-          <dd class="calc">${formatTokens(tokens.output)} × ${multiplier} = ${formatTokens(estimate.tokens.output)} ток. × ${formatPrice(model.output)}/1M</dd>
+          <dd class="calc">${formatTokens(estimate.tokens.output)} ток.${multiplier !== 1 ? ` (effort ×${multiplier})` : ""} × ${formatPrice(estimate.prices.output)}/1M</dd>
           <dd class="sum">${formatUsd(estimate.cost.output)}</dd>
         </div>
       </dl>
 
-      <p class="note">Множители effort — оценка, а не тариф Anthropic. Выход включает токены размышлений (thinking).</p>
+      <p class="note">Множители effort — оценка, а не тариф Anthropic. Выход включает токены размышлений (thinking). Запись в кэш не учитывается.</p>
     `;
+  }
+
+  function renderCompare(tokens: Tokens, options: EstimateOptions): void {
+    const rows = compareModels(state.effort ?? undefined, tokens, options);
+    const max = Math.max(...rows.map((r) => r.estimate.cost.total));
+    const selected = rows.find((r) => r.modelId === state.modelId)!.estimate.cost.total;
+    const anyFallback = rows.some((r) => r.effortFallback && r.estimate.effort);
+
+    compare.innerHTML = `
+      <table class="compare-table">
+        <thead>
+          <tr><th scope="col">Модель</th><th scope="col">Стоимость</th><th scope="col" class="num">К выбранной</th></tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map((r) => {
+              const total = r.estimate.cost.total;
+              const isSelected = r.modelId === state.modelId;
+              const diff =
+                isSelected ? "выбрана" : selected > 0 ? formatDiff(total / selected - 1) : "—";
+              const meta = [
+                r.estimate.effort ? `${r.estimate.effort}${r.effortFallback ? "*" : ""}` : "без effort",
+                r.fastUnavailable ? "без fast" : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return `
+            <tr class="${isSelected ? "selected" : ""}">
+              <td>
+                <button type="button" class="model-btn" data-model="${r.modelId}" aria-pressed="${isSelected}">${r.estimate.model.replace(/^Claude /, "")}</button>
+                <small>${meta}</small>
+              </td>
+              <td>
+                <div class="bar-cell">
+                  <span class="bar" style="--w: ${max > 0 ? (total / max) * 100 : 0}%"></span>
+                  <span class="bar-value">${formatUsd(total)}</span>
+                </div>
+              </td>
+              <td class="num diff">${diff}</td>
+            </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>
+      ${anyFallback ? '<p class="hint">* Модель не поддерживает выбранный effort — взят её effort по умолчанию.</p>' : ""}
+    `;
+  }
+
+  function render(): void {
+    const tokens = currentTokens();
+    const options = currentOptions();
+    const error = typeof tokens === "string" ? tokens : typeof options === "string" ? options : null;
+    if (error) {
+      result.innerHTML = `<p class="error">${error}</p>`;
+      compare.innerHTML = "";
+      return;
+    }
+    try {
+      const t = tokens as Tokens;
+      const o = options as EstimateOptions;
+      renderResult(estimateCost({ modelId: state.modelId, effort: state.effort ?? undefined, size: t, options: o }));
+      renderCompare(t, o);
+    } catch (err) {
+      result.innerHTML = `<p class="error">${(err as Error).message}</p>`;
+      compare.innerHTML = "";
+    }
   }
 
   form.addEventListener("change", (event) => {
     const target = event.target as HTMLInputElement | HTMLSelectElement;
-    if (target.name === "model") {
-      state.modelId = target.value;
-      const model = getModel(state.modelId);
-      // Выбранный effort сохраняем, если новая модель его поддерживает.
-      if (!state.effort || !model.efforts.includes(state.effort)) state.effort = model.defaultEffort;
-      if (model.efforts.length === 0) state.effort = null;
-      renderEffort();
-    } else if (target.name === "effort") {
-      state.effort = target.value as Effort;
-      renderEffort();
-    } else if (target.name === "size") {
-      state.size = target.value as SizeChoice;
-      customBox.hidden = state.size !== "custom";
+    switch (target.name) {
+      case "model":
+        setModel(target.value);
+        break;
+      case "effort":
+        state.effort = target.value as Effort;
+        renderEffort();
+        break;
+      case "size":
+        state.size = target.value as SizeChoice;
+        customBox.hidden = state.size !== "custom";
+        break;
+      case "batch":
+      case "fast":
+        state[target.name] = (target as HTMLInputElement).checked;
+        renderOptions();
+        break;
+      default:
+        return;
     }
-    renderResult();
+    render();
   });
 
   form.addEventListener("input", (event) => {
     const target = event.target as HTMLInputElement;
     if (target.name === "customInput") state.custom.input = target.value;
     else if (target.name === "customOutput") state.custom.output = target.value;
-    else return;
-    renderResult();
+    else if (target.name === "runs") state.runs = target.value;
+    else if (target.name === "cache") {
+      state.cache = Number(target.value);
+      renderOptions();
+    } else return;
+    render();
+  });
+
+  compare.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-model]");
+    if (!button) return;
+    setModel(button.dataset.model!);
+    render();
   });
 
   renderEffort();
-  renderResult();
+  renderOptions();
+  render();
+}
+
+/** +150% / −40% относительно выбранной модели. */
+function formatDiff(ratio: number): string {
+  const pct = Math.round(ratio * 100);
+  if (pct === 0) return "≈";
+  return `${pct > 0 ? "+" : "−"}${Math.abs(pct)}%`;
 }

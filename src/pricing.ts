@@ -47,8 +47,19 @@ export interface CostEstimate {
   runs: number;
   /** Токены на все запуски. */
   tokens: { input: number; cachedInput: number; output: number };
+  /** Итоговые цены за 1M токенов с учётом fast mode, кэша и batch. */
+  prices: { input: number; cachedInput: number; output: number };
   /** Стоимость в USD на все запуски. */
   cost: { input: number; cachedInput: number; output: number; total: number };
+}
+
+export interface ModelComparison {
+  modelId: string;
+  estimate: CostEstimate;
+  /** Модель не поддерживает выбранный effort — взят её effort по умолчанию. */
+  effortFallback: boolean;
+  /** Fast mode запрошен, но модель его не поддерживает — посчитано без него. */
+  fastUnavailable: boolean;
 }
 
 const MTOK = 1_000_000;
@@ -118,15 +129,21 @@ export function estimateCost({ modelId, effort, size, options = {} }: EstimateIn
   const outputPrice = fast ? model.fast!.output : model.output;
   const discount = batch ? pricing.batchDiscount : 1;
 
-  const inputCost = (uncachedTokens * inputPrice * discount) / MTOK;
-  const cachedCost = (cachedTokens * inputPrice * cacheRatio * discount) / MTOK;
-  const outputCost = (outputTokens * outputPrice * discount) / MTOK;
+  const prices = {
+    input: inputPrice * discount,
+    cachedInput: inputPrice * cacheRatio * discount,
+    output: outputPrice * discount,
+  };
+  const inputCost = (uncachedTokens * prices.input) / MTOK;
+  const cachedCost = (cachedTokens * prices.cachedInput) / MTOK;
+  const outputCost = (outputTokens * prices.output) / MTOK;
 
   return {
     model: model.name,
     effort: resolvedEffort,
     runs,
     tokens: { input: uncachedTokens, cachedInput: cachedTokens, output: outputTokens },
+    prices,
     cost: {
       input: inputCost,
       cachedInput: cachedCost,
@@ -134,4 +151,26 @@ export function estimateCost({ modelId, effort, size, options = {} }: EstimateIn
       total: inputCost + cachedCost + outputCost,
     },
   };
+}
+
+/**
+ * Одна и та же задача на всех моделях, от дешёвой к дорогой.
+ * Если модель не умеет выбранный effort или fast mode, считаем с её умолчаниями и помечаем это.
+ */
+export function compareModels(
+  effort: Effort | undefined,
+  size: SizeId | Tokens,
+  options: EstimateOptions = {},
+): ModelComparison[] {
+  return MODELS.map((model) => {
+    const effortFallback = !!effort && !model.efforts.includes(effort);
+    const fastUnavailable = !!options.fast && !model.fast;
+    const estimate = estimateCost({
+      modelId: model.id,
+      effort: effortFallback ? undefined : effort,
+      size,
+      options: fastUnavailable ? { ...options, fast: false } : options,
+    });
+    return { modelId: model.id, estimate, effortFallback, fastUnavailable };
+  }).sort((a, b) => a.estimate.cost.total - b.estimate.cost.total);
 }
