@@ -64,6 +64,7 @@ export interface ModelComparison {
 
 const MTOK = 1_000_000;
 
+export const PRICING_META = { updated: pricing.updated, source: pricing.source };
 export const MODELS: ModelPricing[] = pricing.models as ModelPricing[];
 export const SIZES = pricing.sizes as Record<SizeId, Tokens & { label: string }>;
 export const EFFORT_MULTIPLIERS: Record<Effort, number> = {

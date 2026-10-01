@@ -1,6 +1,7 @@
 import {
   EFFORT_MULTIPLIERS,
   MODELS,
+  PRICING_META,
   SIZES,
   compareModels,
   estimateCost,
@@ -137,6 +138,15 @@ export function mountApp(root: HTMLElement): void {
         <p class="hint">Те же размер, effort и опции. Нажмите на модель, чтобы выбрать её.</p>
         <div id="compare"></div>
       </section>
+
+      <footer class="footer">
+        <p>
+          Цены Anthropic API на ${new Date(PRICING_META.updated).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
+          · <a href="${PRICING_META.source}" target="_blank" rel="noopener">источник</a>
+          · <a href="https://github.com/timurkim692-a11y/claude-cost-calculator#как-считается" target="_blank" rel="noopener">методика расчёта</a>
+        </p>
+        <p>На подписке Pro/Max задачи в пределах лимитов не оплачиваются отдельно — по этим тарифам считаются usage credits сверх лимита и fast mode.</p>
+      </footer>
     </main>
   `;
 

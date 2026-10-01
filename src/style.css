@@ -493,6 +493,20 @@ input[type="number"]:focus-visible {
   color: var(--muted);
 }
 
+.footer {
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.footer p {
+  margin: 0 0 4px;
+}
+
+.footer a {
+  color: inherit;
+}
+
 .error {
   margin: 0;
   color: var(--error);
