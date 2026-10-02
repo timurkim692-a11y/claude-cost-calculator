@@ -146,6 +146,7 @@ export function mountApp(root: HTMLElement): void {
           · <a href="https://github.com/timurkim692-a11y/claude-cost-calculator#как-считается" target="_blank" rel="noopener">методика расчёта</a>
         </p>
         <p>На подписке Pro/Max задачи в пределах лимитов не оплачиваются отдельно — по этим тарифам считаются usage credits сверх лимита и fast mode.</p>
+        <p><a href="./privacy.html">Политика конфиденциальности</a> · <a href="./terms.html">Условия использования</a></p>
       </footer>
     </main>
   `;
