@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Пульт</title>
+<meta name="theme-color" content="#141b24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Пульт">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+/* Layout: phone-first operator app — sticky top bar, one view at a time (projects/buttons, run thread, settings); two columns on wide screens */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --panel-2:#f4f6f9; --ink:#141b24; --muted:#5a6573; --line:#d6dce3;
+  --accent:#1d48c4; --accent-ink:#ffffff; --accent-soft:#e3eafb;
+  --check:#b800b8; --check-soft:#fbe3fb;   /* сиреневый из таблиц: нужно ваше действие */
+  --ok:#17723f; --ok-soft:#e1f2e8; --err:#b02a20; --err-soft:#fbe5e3; --code:#eef1f5;
+  --bar:#141b24; --bar-ink:#e9edf2;
+  --f-sans:"IBM Plex Sans",-apple-system,system-ui,"Segoe UI",sans-serif;
+  --f-cond:"IBM Plex Sans Condensed","IBM Plex Sans",-apple-system,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e1217; --panel:#161b22; --panel-2:#1c222a; --ink:#e6eaef; --muted:#98a3b1; --line:#29313b;
+    --accent:#7d9cff; --accent-ink:#0b1020; --accent-soft:#1e2945;
+    --check:#ff6bff; --check-soft:#3a1a3a; --ok:#5fcf8c; --ok-soft:#163222; --err:#ff8a80; --err-soft:#3a1c1a; --code:#10151b;
+    --bar:#0a0d11; --bar-ink:#e6eaef;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-sans);-webkit-text-size-adjust:100%;min-height:100vh}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:10;background:var(--bar);color:var(--bar-ink);padding-top:env(safe-area-inset-top,0px)}
+.bar .in{display:flex;align-items:center;gap:10px;height:52px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1200px;margin:0 auto}
+.bar h1{font-family:var(--f-cond);font-weight:600;font-size:20px;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar button{background:transparent;border:0;color:var(--bar-ink);padding:8px 6px;font-size:15px;cursor:pointer;border-radius:8px}
+.bar button:active{background:rgba(255,255,255,.08)}
+main{padding-block:14px calc(24px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.label{font-family:var(--f-cond);font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.card .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.card .bd{padding:12px 14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:9px 14px;cursor:pointer;min-height:40px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.write{border-color:var(--check);color:var(--check);font-weight:500}
+.btn.danger{color:var(--err)}
+.btn:disabled{opacity:.5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;font-family:var(--f-cond);font-weight:600;font-size:15px;padding:7px 15px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}
+.tab.sel{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.home{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+@media (min-width:900px){.home{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.skills{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.skill{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:14px;border-radius:var(--r);border:1px solid var(--line);background:var(--panel);cursor:pointer;min-height:96px;position:relative}
+.skill .nm{font-family:var(--f-cond);font-weight:600;font-size:18px;line-height:1.2}
+.skill .ds{font-size:12.5px;color:var(--muted);line-height:1.35}
+.skill .sk{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:auto}
+.skill:active{transform:scale(.98)}
+.skill.add{align-items:center;justify-content:center;color:var(--muted);border-style:dashed;background:transparent}
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(10,13,17,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet .box{background:var(--panel);width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:92vh;overflow:auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px}
+@media (min-width:700px){.sheet{align-items:center}.sheet .box{border-radius:16px}}
+.sheet h2{font-family:var(--f-cond);font-weight:600;font-size:20px;margin:0}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>span{font-size:13px;color:var(--muted)}
+input[type=text],input[type=password],input[type=month],textarea,select{width:100%;min-width:0;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 11px;font-size:16px}
+textarea{resize:vertical}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.check input{margin-top:4px;width:18px;height:18px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.end{justify-content:flex-end}
+.hint{font-size:13px;color:var(--muted)}
+.hint.err{color:var(--err)}
+.runs{list-style:none;margin:0;padding:0}
+.runs li a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:11px 14px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.runs li:last-child a{border-bottom:0}
+.runs .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.runs .w{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-cond);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap;background:var(--panel-2);color:var(--muted)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.working,.chip.queued{color:var(--accent);background:var(--accent-soft)}
+.chip.blocked{color:var(--check);background:var(--check-soft)}
+.chip.done{color:var(--ok);background:var(--ok-soft)}
+.chip.failed{color:var(--err);background:var(--err-soft)}
+@media (prefers-reduced-motion:no-preference){.chip.working::before,.chip.queued::before{animation:pulse 1.2s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.25}}
+.thread{display:flex;flex-direction:column;gap:12px}
+.msg{border-radius:var(--r);padding:11px 13px;overflow-wrap:anywhere;min-width:0}
+.msg .who{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+.msg.claude{background:var(--panel);border:1px solid var(--line)}
+.msg.me{background:var(--accent-soft);margin-left:12%}
+.msg.task{background:transparent;border:1px dashed var(--line)}
+.msg.task summary{cursor:pointer;color:var(--muted);font-size:14px}
+.md p{margin:0 0 .6em}.md>*:last-child{margin-bottom:0}
+.md ul,.md ol{margin:.2em 0 .6em;padding-left:1.3em}
+.md code{font-family:var(--f-mono);font-size:.9em;background:var(--code);padding:1px 4px;border-radius:4px}
+.md pre{font-family:var(--f-mono);font-size:12.5px;background:var(--code);padding:9px 11px;border-radius:8px;overflow-x:auto}
+.md pre code{background:none;padding:0}
+.md table{border-collapse:collapse;display:block;overflow-x:auto;font-size:13.5px;max-width:100%}
+.md th,.md td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.md details{margin:.3em 0}
+.md img{max-width:16px;vertical-align:middle}
+.attn{background:var(--check-soft);border-left:3px solid var(--check);border-radius:8px;padding:10px 12px;font-size:14px}
+.reply{position:sticky;bottom:0;background:var(--bg);padding-top:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+.quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick .btn{flex:none;min-height:36px;padding:6px 12px;font-size:14px}
+.send{display:flex;gap:8px;align-items:flex-end}
+.send textarea{min-height:44px;max-height:160px}
+.banner{border-radius:9px;padding:10px 12px;font-size:14px;background:var(--err-soft);border-left:3px solid var(--err)}
+.banner.ok{background:var(--ok-soft);border-left-color:var(--ok)}
+.empty{color:var(--muted);text-align:center;padding:22px 12px;display:flex;flex-direction:column;gap:6px;align-items:center}
+.empty b{color:var(--ink)}
+.steps{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.code{font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="bar"><div class="in">
+  <button id="backBtn" type="button" aria-label="Назад" hidden>‹ Назад</button>
+  <h1 id="barTitle">Пульт</h1>
+  <button id="refreshBtn" type="button" aria-label="Обновить">⟳</button>
+  <button id="settingsBtn" type="button" aria-label="Настройки">⚙︎</button>
+</div></header>
+
+<main>
+  <div class="banner" id="banner" hidden></div>
+
+  <!-- HOME -->
+  <section id="vHome" hidden>
+    <div class="tabs" id="projects" role="tablist" aria-label="Проекты"></div>
+    <div class="home" style="margin-top:12px">
+      <div class="card">
+        <div class="hd"><span class="label">Кнопки</span><button class="btn ghost" id="projEditBtn" type="button">Проект…</button></div>
+        <div class="bd"><div class="skills" id="skills"></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="label">Запуски</span><span class="hint" id="runsHint"></span></div>
+        <ul class="runs" id="runs"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- RUN -->
+  <section id="vRun" hidden>
+    <div class="row" style="justify-content:space-between">
+      <span class="chip" id="runChip"></span>
+      <div class="row">
+        <a class="btn ghost" id="ghLink" target="_blank" rel="noopener" href="#">GitHub</a>
+        <button class="btn ghost" id="closeRunBtn" type="button">Завершить</button>
+      </div>
+    </div>
+    <div class="attn" id="runAttn" hidden></div>
+    <div class="thread" id="thread"></div>
+    <form class="reply" id="reply">
+      <div class="quick" id="quick">
+        <button type="button" class="btn write" data-q="Записать">Записать</button>
+        <button type="button" class="btn" data-q="Продолжай">Продолжай</button>
+        <button type="button" class="btn" data-q="Покажи подробнее, что именно изменится">Подробнее</button>
+        <button type="button" class="btn" data-q="Отмена, ничего не записывай">Отмена</button>
+      </div>
+      <div class="send">
+        <label class="hint" for="msg" hidden>Ответ Claude</label>
+        <textarea id="msg" rows="1" placeholder="Ответить Claude…"></textarea>
+        <button class="btn primary" id="sendBtn" type="submit">➤</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="vSettings" hidden>
+    <div class="card"><div class="bd" style="display:flex;flex-direction:column;gap:12px">
+      <span class="label">Подключение к GitHub</span>
+      <div class="field"><span>Репозиторий с Claude</span><input type="text" id="sRepo" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><span>Ключ доступа GitHub (fine-grained token)</span><input type="password" id="sToken" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+      <div class="row"><button class="btn primary" id="sSave" type="button">Сохранить и проверить</button><span class="hint" id="sHint"></span></div>
+      <details>
+        <summary class="hint">Как получить ключ</summary>
+        <ol class="steps">
+          <li>Откройте <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>
+          <li>Token name: «Пульт». Expiration: 1 год (Custom).</li>
+          <li>Repository access: <b>Only select repositories</b> → <code>claude-pult</code>.</li>
+          <li>Permissions → Repository: <b>Contents</b> — Read and write, <b>Issues</b> — Read and write.</li>
+          <li>Generate token, скопируйте и вставьте сюда. Ключ хранится только на этом устройстве.</li>
+        </ol>
+      </details>
+    </div></div>
+    <div class="card"><div class="bd" style="display:flex;flex-direction:column;gap:8px">
+      <span class="label">Как это работает</span>
+      <p class="hint" style="margin:0">Кнопка создаёт задачу в репозитории. GitHub запускает Claude Code с вашим скиллом и доступом к Google Таблицам, Claude пишет ход работы и вопросы в задачу. Ваш ответ из пульта запускает его снова. Расход — из подписки Claude.</p>
+      <button class="btn danger" id="sForget" type="button">Удалить ключ с этого устройства</button>
+    </div></div>
+  </section>
+</main>
+
+<!-- LAUNCH SHEET -->
+<div class="sheet" id="launchSheet" hidden><form class="box" id="launchForm">
+  <h2 id="lTitle">Запуск</h2>
+  <span class="hint" id="lDesc"></span>
+  <div class="field" id="lParamF"><span id="lParamL">Месяц</span><input id="lParam" type="month"></div>
+  <label class="check"><input type="checkbox" id="lConfirm" checked><span>Перед записью показать план и ждать «Записать»</span></label>
+  <div class="field"><span>Дополнительно (необязательно)</span><textarea id="lExtra" rows="2" placeholder="Например: только Профарм"></textarea></div>
+  <div class="row"><button class="btn primary" id="lGo" type="submit" style="flex:1">Запустить</button><button class="btn" type="button" data-close>Отмена</button></div>
+  <div class="row" style="justify-content:space-between"><button class="btn ghost" type="button" id="lNotes">Заметки к скиллу</button><button class="btn ghost" type="button" id="lEdit">Изменить кнопку</button></div>
+  <span class="hint" id="lHint" role="status"></span>
+</form></div>
+
+<!-- BUTTON EDITOR -->
+<div class="sheet" id="btnSheet" hidden><form class="box" id="btnForm">
+  <h2 id="bTitle">Новая кнопка</h2>
+  <div class="field"><span>Скилл</span><select id="bSkill"></select></div>
+  <span class="hint" id="bSkillDesc"></span>
+  <div class="field"><span>Название</span><input type="text" id="bLabel" required></div>
+  <div class="field"><span>Подпись</span><input type="text" id="bDesc"></div>
+  <div class="field"><span>Параметр</span><select id="bParam"><option value="month">Месяц</option><option value="text">Текст</option><option value="none">Без параметра</option></select></div>
+  <label class="check"><input type="checkbox" id="bConfirm" checked><span>Спрашивать перед записью</span></label>
+  <div class="field"><span>Постоянная инструкция</span><textarea id="bExtra" rows="2"></textarea></div>
+  <div class="row"><button class="btn primary" type="submit" style="flex:1">Сохранить</button><button class="btn" type="button" data-close>Отмена</button></div>
+  <button class="btn danger" type="button" id="bDelete" hidden>Удалить кнопку</button>
+  <span class="hint" id="bHint"></span>
+</form></div>
+
+<!-- PROJECT EDITOR -->
+<div class="sheet" id="projSheet" hidden><form class="box" id="projForm">
+  <h2 id="pTitle">Проект</h2>
+  <div class="field"><span>Название</span><input type="text" id="pName" required></div>
+  <div class="row"><button class="btn primary" type="submit" style="flex:1">Сохранить</button><button class="btn" type="button" data-close>Отмена</button></div>
+  <button class="btn" type="button" id="pNew">+ Новый проект</button>
+  <button class="btn danger" type="button" id="pDelete" hidden>Удалить проект</button>
+  <span class="hint" id="pHint"></span>
+</form></div>
+
+<!-- NOTES -->
+<div class="sheet" id="notesSheet" hidden><form class="box" id="notesForm">
+  <h2 id="nTitle">Заметки</h2>
+  <span class="hint">Claude читает их перед каждым запуском этого скилла.</span>
+  <textarea id="nText" rows="10" placeholder="Исключения, что проверять, как разносить спорные случаи…"></textarea>
+  <div class="row"><button class="btn primary" type="submit" style="flex:1">Сохранить</button><button class="btn" type="button" data-close>Закрыть</button></div>
+  <span class="hint" id="nHint"></span>
+</form></div>
+
+<script>
+(() => {
+  "use strict";
+  const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+  const CONFIG_PATH = "pult/config.json";
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v; else if (k === "text") n.textContent = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids) if (c != null) n.append(c);
+    return n;
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("pult." + k); return v == null ? d : v; } catch (_) { return d; } },
+    set(k, v) { try { if (v == null) localStorage.removeItem("pult." + k); else localStorage.setItem("pult." + k, v); } catch (_) {} },
+  };
+  const st = {
+    repo: store.get("repo", "timurkim692-a11y/claude-pult"),
+    token: store.get("token", ""),
+    me: null, config: null, configSha: null, skills: [], runs: [],
+    proj: store.get("project", ""), btn: null, editBtn: null,
+    run: null, timer: null,
+  };
+
+  /* ---------- utils ---------- */
+  const prevMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+  const monthWords = (v) => { const [y, m] = (v || "").split("-"); return m ? MONTHS[+m - 1] + " " + y : v; };
+  const when = (ts) => { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+  const slug = (s) => (String(s).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "x") + "-" + Date.now().toString(36);
+  const b64dec = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+  const b64enc = (s) => { const b = new TextEncoder().encode(s); let out = ""; for (let i = 0; i < b.length; i += 0x8000) out += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(out); };
+  function mdHtml(src) {
+    try { return DOMPurify.sanitize(marked.parse(String(src || ""), { breaks: true })); }
+    catch (_) { return mdLite(src); }
+  }
+  // Запасной разбор Markdown, если библиотеки не загрузились (нет сети к CDN).
+  function mdLite(src) {
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const inline = (t) => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
+    let out = "";
+    String(src || "").replace(/<[^>]+>/g, "").split(/```[a-z]*\n?/).forEach((chunk, i) => {
+      if (i % 2) { out += "<pre>" + esc(chunk) + "</pre>"; return; }
+      for (const b of chunk.split(/\n{2,}/)) {
+        if (!b.trim()) continue;
+        const lines = b.split("\n").filter((l) => l.trim());
+        if (lines.every((l) => /^\s*([-*]|\d+[.)])\s+/.test(l))) {
+          const ol = /^\s*\d/.test(lines[0]);
+          out += (ol ? "<ol>" : "<ul>") + lines.map((l) => "<li>" + inline(l.replace(/^\s*([-*]|\d+[.)])\s+/, "")) + "</li>").join("") + (ol ? "</ol>" : "</ul>");
+        } else if (/^#{1,4}\s/.test(lines[0]) && lines.length === 1) out += "<p><b>" + inline(lines[0].replace(/^#+\s*/, "")) + "</b></p>";
+        else out += "<p>" + lines.map(inline).join("<br>") + "</p>";
+      }
+    });
+    return out;
+  }
+  function banner(t, ok) { const b = $("banner"); b.textContent = t || ""; b.className = "banner" + (ok ? " ok" : ""); b.hidden = !t; }
+  function open(id) { $(id).hidden = false; }
+  function close(id) { $(id).hidden = true; }
+  document.querySelectorAll(".sheet").forEach((s) => {
+    s.addEventListener("click", (e) => { if (e.target === s || e.target.closest("[data-close]")) s.hidden = true; });
+  });
+
+  /* ---------- GitHub API ---------- */
+  async function gh(path, opts = {}) {
+    if (!st.token) throw { status: 0, message: "Нет ключа GitHub. Откройте настройки ⚙︎." };
+    let r;
+    try {
+      r = await fetch("https://api.github.com" + path, {
+        method: opts.method || "GET", cache: "no-store",
+        headers: { Authorization: "Bearer " + st.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.body ? { "Content-Type": "application/json" } : {}) },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+    } catch (_) { throw { status: 0, message: "Нет связи с GitHub. Проверьте интернет." }; }
+    if (r.status === 204) return null;
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw { status: r.status, message: (data && data.message) || ("HTTP " + r.status) };
+    return data;
+  }
+  function ghErr(e) {
+    if (!e) return "Ошибка";
+    if (e.status === 401) return "GitHub не принял ключ. Проверьте его в настройках ⚙︎.";
+    if (e.status === 403) return "У ключа нет нужных прав (Contents и Issues — Read and write) или превышен лимит запросов.";
+    if (e.status === 404) return "Репозиторий или файл не найден. Проверьте имя репозитория и доступ ключа к нему.";
+    return e.message || "Ошибка GitHub";
+  }
+  const R = () => "/repos/" + st.repo;
+  async function readFile(path) {
+    try { const f = await gh(R() + "/contents/" + encodeURI(path)); return { text: b64dec(f.content), sha: f.sha }; }
+    catch (e) { if (e.status === 404) return { text: null, sha: null }; throw e; }
+  }
+  async function writeFile(path, text, sha, message) {
+    const res = await gh(R() + "/contents/" + encodeURI(path), { method: "PUT", body: { message, content: b64enc(text), ...(sha ? { sha } : {}) } });
+    return res && res.content && res.content.sha;
+  }
+
+  /* ---------- config ---------- */
+  async function loadConfig() {
+    const f = await readFile(CONFIG_PATH);
+    st.configSha = f.sha;
+    try { st.config = f.text ? JSON.parse(f.text) : null; } catch (_) { st.config = null; }
+    if (!st.config || !Array.isArray(st.config.projects)) st.config = { projects: [] };
+  }
+  async function saveConfig(msg) {
+    try { st.configSha = await writeFile(CONFIG_PATH, JSON.stringify(st.config, null, 2) + "\n", st.configSha, "Пульт: " + msg); }
+    catch (e) {
+      if (e.status === 409 || e.status === 422) { await loadConfig(); throw { message: "Настройки изменились на другом устройстве. Я загрузил свежую версию, повторите действие." }; }
+      throw e;
+    }
+  }
+  async function loadSkills() {
+    try {
+      const list = await gh(R() + "/contents/.claude/skills");
+      st.skills = (list || []).filter((x) => x.type === "dir").map((x) => ({ id: x.name, description: null }));
+    } catch (_) { st.skills = []; }
+  }
+  async function skillDesc(id) {
+    const s = st.skills.find((x) => x.id === id);
+    if (s && s.description != null) return s.description;
+    try {
+      const f = await readFile(".claude/skills/" + id + "/SKILL.md");
+      const m = /description:\s*"?([^"\n]+)"?/.exec(f.text || "");
+      const d = m ? m[1].trim() : "";
+      if (s) s.description = d;
+      return d;
+    } catch (_) { return ""; }
+  }
+  const project = () => st.config.projects.find((p) => p.id === st.proj) || st.config.projects[0] || null;
+
+  /* ---------- runs ---------- */
+  const MARK = /<!--\s*pult\s+project=([^\s]+)\s+button=([^\s]+)\s*-->/;
+  async function loadRuns() {
+    const list = await gh(R() + "/issues?state=all&per_page=50&sort=created&direction=desc");
+    st.runs = (list || []).filter((i) => !i.pull_request).map((i) => {
+      const m = MARK.exec(i.body || "");
+      return { number: i.number, title: i.title, state: i.state, created: i.created_at, updated: i.updated_at, project: m ? m[1] : null, button: m ? m[2] : null, comments: i.comments };
+    });
+  }
+
+  /* ---------- views ---------- */
+  function show(view, title) {
+    for (const v of ["vHome", "vRun", "vSettings"]) $(v).hidden = v !== view;
+    $("barTitle").textContent = title || "Пульт";
+    $("backBtn").hidden = view === "vHome";
+    if (view !== "vRun") { clearTimeout(st.timer); st.run = null; }
+    window.scrollTo(0, 0);
+  }
+  function renderHome() {
+    const p = project();
+    st.proj = p ? p.id : "";
+    const tabs = $("projects"); tabs.replaceChildren();
+    for (const x of st.config.projects) tabs.append(el("button", { type: "button", role: "tab", class: "tab" + (p && x.id === p.id ? " sel" : ""), "aria-selected": p && x.id === p.id ? "true" : "false", text: x.name, onclick: () => { st.proj = x.id; store.set("project", x.id); renderHome(); } }));
+    tabs.append(el("button", { type: "button", class: "tab", text: "+ Проект", onclick: () => openProj(null) }));
+    const box = $("skills"); box.replaceChildren();
+    if (!p) box.append(el("div", { class: "empty" }, el("b", { text: "Нет проектов" }), el("span", { text: "Создайте первый проект." })));
+    else {
+      for (const b of p.buttons || []) {
+        box.append(el("button", { type: "button", class: "skill", onclick: () => openLaunch(b) },
+          el("span", { class: "nm", text: b.label || b.skill }),
+          b.description ? el("span", { class: "ds", text: b.description }) : null,
+          el("span", { class: "sk", text: b.skill })));
+      }
+      box.append(el("button", { type: "button", class: "skill add", text: "+ Кнопка", onclick: () => openBtnEditor(null) }));
+    }
+    $("projEditBtn").disabled = !p;
+    renderRuns();
+  }
+  function runState(r) { return r.state === "closed" ? "done" : (r.cached || "blocked"); }
+  const CHIP = { queued: "Запускается", working: "Работает", blocked: "Ждёт вас", done: "Завершён", failed: "Ошибка" };
+  function renderRuns() {
+    const ul = $("runs"); ul.replaceChildren();
+    const p = project();
+    const list = st.runs.filter((r) => p && r.project === p.id);
+    $("runsHint").textContent = list.length ? "" : "";
+    if (!list.length) { ul.append(el("li", { class: "empty" }, el("span", { text: "Здесь появятся запуски кнопок." }))); return; }
+    for (const r of list) {
+      const s = r.state === "closed" ? "done" : "open";
+      ul.append(el("li", {}, el("a", { href: "#run-" + r.number },
+        el("span", { class: "t", text: r.title }),
+        el("span", { class: "chip " + (s === "done" ? "done" : "blocked"), text: s === "done" ? "Завершён" : "Открыт" }),
+        el("span", { class: "w", text: when(r.created) + " · №" + r.number }))));
+    }
+  }
+
+  /* ---------- launch ---------- */
+  function openLaunch(b) {
+    st.btn = b;
+    $("lTitle").textContent = b.label || b.skill;
+    $("lDesc").textContent = b.description || "";
+    const p = b.param || "month";
+    $("lParamF").hidden = p === "none";
+    $("lParamL").textContent = p === "month" ? "Месяц" : (b.paramLabel || "Параметр");
+    $("lParam").type = p === "month" ? "month" : "text";
+    $("lParam").value = p === "month" ? prevMonth() : "";
+    $("lConfirm").checked = b.confirm !== false;
+    $("lExtra").value = ""; $("lHint").textContent = ""; $("lHint").className = "hint";
+    open("launchSheet");
+  }
+  function buildBody(p, b, value, confirm, extra) {
+    const lines = ["@claude Задача из пульта · проект «" + p.name + "» · кнопка «" + (b.label || b.skill) + "»", ""];
+    let arg = "";
+    if ((b.param || "month") === "month" && value) arg = " Месяц: " + monthWords(value) + " (" + value + ").";
+    else if (b.param === "text" && value) arg = " " + (b.paramLabel || "Параметр") + ": " + value + ".";
+    lines.push("Используй скилл `" + b.skill + "`." + arg);
+    if (b.extra) lines.push(b.extra);
+    if (extra) lines.push(extra);
+    lines.push("");
+    if (confirm) lines.push("- Перед любой записью покажи план (таблица, лист, диапазон, сколько строк, что залито сиреневым) и жди моего ответа «Записать».");
+    lines.push("- Вопросы задавай здесь, коротко, с вариантами ответа.");
+    lines.push("- Если есть `notes/" + b.skill + ".md` — прочитай заметки перед работой.");
+    lines.push("", "<!-- pult project=" + p.id + " button=" + b.id + " -->");
+    return lines.join("\n");
+  }
+  $("launchForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const p = project(), b = st.btn; if (!p || !b) return;
+    const value = $("lParam").value.trim();
+    if ((b.param || "month") === "month" && !value) { $("lHint").textContent = "Выберите месяц."; return; }
+    const title = (b.label || b.skill) + ((b.param || "month") === "month" ? " · " + monthWords(value) : value ? " · " + value : "");
+    const go = $("lGo"); go.disabled = true; $("lHint").className = "hint"; $("lHint").textContent = "Создаю задачу…";
+    try {
+      const issue = await gh(R() + "/issues", { method: "POST", body: { title, body: buildBody(p, b, value, $("lConfirm").checked, $("lExtra").value.trim()) } });
+      close("launchSheet");
+      st.runs.unshift({ number: issue.number, title, state: "open", created: issue.created_at, project: p.id, button: b.id });
+      location.hash = "#run-" + issue.number;
+    } catch (err) { $("lHint").className = "hint err"; $("lHint").textContent = ghErr(err); }
+    finally { go.disabled = false; }
+  });
+  $("lEdit").onclick = () => { close("launchSheet"); openBtnEditor(st.btn); };
+  $("lNotes").onclick = () => { close("launchSheet"); openNotes(st.btn.skill); };
+
+  /* ---------- button editor ---------- */
+  async function openBtnEditor(b) {
+    st.editBtn = b;
+    $("bTitle").textContent = b ? "Кнопка «" + (b.label || b.skill) + "»" : "Новая кнопка";
+    const sel = $("bSkill"); sel.replaceChildren(el("option", { value: "", text: "— выберите скилл —" }));
+    for (const s of st.skills) sel.append(el("option", { value: s.id, text: s.id }));
+    if (b && !st.skills.some((s) => s.id === b.skill)) sel.append(el("option", { value: b.skill, text: b.skill }));
+    sel.value = b ? b.skill : "";
+    $("bLabel").value = b ? b.label || "" : "";
+    $("bDesc").value = b ? b.description || "" : "";
+    $("bParam").value = b ? b.param || "month" : "month";
+    $("bConfirm").checked = b ? b.confirm !== false : true;
+    $("bExtra").value = b ? b.extra || "" : "";
+    $("bDelete").hidden = !b; $("bDelete").dataset.armed = ""; $("bDelete").textContent = "Удалить кнопку";
+    $("bHint").textContent = st.skills.length ? "" : "Список скиллов не загрузился. Скиллы лежат в .claude/skills репозитория.";
+    $("bSkillDesc").textContent = b ? await skillDesc(b.skill) : "";
+    open("btnSheet");
+  }
+  $("bSkill").addEventListener("change", async () => {
+    const id = $("bSkill").value; if (!id) { $("bSkillDesc").textContent = ""; return; }
+    $("bSkillDesc").textContent = "…";
+    const d = await skillDesc(id);
+    $("bSkillDesc").textContent = d;
+    if (!$("bLabel").value) $("bLabel").value = id.replace(/^mgroup-/, "");
+    if (/за месяц|месяц/i.test(d)) $("bParam").value = "month";
+  });
+  $("btnForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const p = project(); if (!p) return;
+    const skill = $("bSkill").value; if (!skill) { $("bHint").textContent = "Выберите скилл."; return; }
+    const data = { id: st.editBtn ? st.editBtn.id : slug(skill), label: $("bLabel").value.trim() || skill, skill, description: $("bDesc").value.trim(), param: $("bParam").value, confirm: $("bConfirm").checked, extra: $("bExtra").value.trim() };
+    p.buttons = p.buttons || [];
+    const i = p.buttons.findIndex((x) => x.id === data.id);
+    if (i >= 0) p.buttons[i] = data; else p.buttons.push(data);
+    $("bHint").textContent = "Сохраняю…";
+    try { await saveConfig("кнопка «" + data.label + "»"); close("btnSheet"); renderHome(); }
+    catch (err) { $("bHint").textContent = ghErr(err); }
+  });
+  $("bDelete").onclick = async () => {
+    const d = $("bDelete");
+    if (!d.dataset.armed) { d.dataset.armed = "1"; d.textContent = "Точно удалить?"; return; }
+    const p = project(); p.buttons = (p.buttons || []).filter((x) => x.id !== st.editBtn.id);
+    try { await saveConfig("удалена кнопка"); close("btnSheet"); renderHome(); } catch (err) { $("bHint").textContent = ghErr(err); }
+  };
+
+  /* ---------- project editor ---------- */
+  let editingProj = null;
+  function openProj(p) {
+    editingProj = p;
+    $("pTitle").textContent = p ? "Проект «" + p.name + "»" : "Новый проект";
+    $("pName").value = p ? p.name : "";
+    $("pNew").hidden = !p;
+    $("pDelete").hidden = !p; $("pDelete").dataset.armed = ""; $("pDelete").textContent = "Удалить проект";
+    $("pHint").textContent = "";
+    open("projSheet");
+  }
+  $("projEditBtn").onclick = () => openProj(project());
+  $("pNew").onclick = () => openProj(null);
+  $("projForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("pName").value.trim(); if (!name) return;
+    if (editingProj) editingProj.name = name;
+    else { const np = { id: slug(name), name, buttons: [] }; st.config.projects.push(np); st.proj = np.id; store.set("project", np.id); }
+    $("pHint").textContent = "Сохраняю…";
+    try { await saveConfig("проект «" + name + "»"); close("projSheet"); renderHome(); } catch (err) { $("pHint").textContent = ghErr(err); }
+  });
+  $("pDelete").onclick = async () => {
+    const d = $("pDelete"), p = editingProj; if (!p) return;
+    if ((p.buttons || []).length) { d.textContent = "Сначала удалите кнопки проекта"; return; }
+    if (!d.dataset.armed) { d.dataset.armed = "1"; d.textContent = "Точно удалить?"; return; }
+    st.config.projects = st.config.projects.filter((x) => x.id !== p.id);
+    try { await saveConfig("удалён проект"); close("projSheet"); renderHome(); } catch (err) { $("pHint").textContent = ghErr(err); }
+  };
+
+  /* ---------- notes ---------- */
+  let notesSkill = null, notesSha = null;
+  async function openNotes(skill) {
+    notesSkill = skill; notesSha = null;
+    $("nTitle").textContent = "Заметки · " + skill;
+    $("nText").value = ""; $("nHint").textContent = "Загружаю…";
+    open("notesSheet");
+    try { const f = await readFile("notes/" + skill + ".md"); notesSha = f.sha; $("nText").value = f.text || ""; $("nHint").textContent = ""; }
+    catch (e) { $("nHint").textContent = ghErr(e); }
+  }
+  $("notesForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("nHint").textContent = "Сохраняю…";
+    try { notesSha = await writeFile("notes/" + notesSkill + ".md", $("nText").value, notesSha, "Пульт: заметки " + notesSkill); $("nHint").textContent = "Сохранено"; }
+    catch (err) { $("nHint").textContent = ghErr(err); }
+  });
+
+  /* ---------- run thread ---------- */
+  const isBot = (u) => u && (u.type === "Bot" || /\[bot\]$/.test(u.login || ""));
+  function botStatus(body) {
+    const head = String(body || "").split("\n")[0];
+    if (/finished|завершил/i.test(head)) return "done";
+    if (/error|failed|ошибк/i.test(head)) return "failed";
+    if (/working|is thinking|работает/i.test(head)) return "working";
+    return "done";
+  }
+  function stripHead(body) {
+    const lines = String(body || "").split("\n");
+    if (/^\*\*Claude/.test(lines[0] || "")) { lines.shift(); while (lines.length && /^(---|\s*)$/.test(lines[0])) lines.shift(); }
+    return lines.join("\n");
+  }
+  async function openRun(num) {
+    show("vRun", "№" + num);
+    st.run = { number: num, sig: "" };
+    $("thread").replaceChildren(el("div", { class: "empty" }, el("span", { text: "Загружаю…" })));
+    $("ghLink").href = "https://github.com/" + st.repo + "/issues/" + num;
+    $("runAttn").hidden = true;
+    await pollRun();
+  }
+  async function pollRun() {
+    clearTimeout(st.timer);
+    const run = st.run; if (!run) return;
+    let issue, comments;
+    try {
+      [issue, comments] = await Promise.all([gh(R() + "/issues/" + run.number), gh(R() + "/issues/" + run.number + "/comments?per_page=100")]);
+    } catch (e) { banner(ghErr(e)); st.timer = setTimeout(pollRun, 15000); return; }
+    if (st.run !== run) return;
+    banner("");
+    $("barTitle").textContent = issue.title;
+    const sig = issue.updated_at + "|" + comments.map((c) => c.id + c.updated_at).join(",");
+    // status
+    const lastBot = [...comments].reverse().find((c) => isBot(c.user));
+    const lastMe = [...comments].reverse().find((c) => !isBot(c.user));
+    let status;
+    if (issue.state === "closed") status = "done";
+    else if (!lastBot) status = "queued";
+    else {
+      const bs = botStatus(lastBot.body);
+      const meAfter = lastMe && new Date(lastMe.created_at) > new Date(lastBot.updated_at) && /@claude/i.test(lastMe.body);
+      status = meAfter ? "queued" : bs === "done" ? "blocked" : bs;
+    }
+    const chip = $("runChip"); chip.className = "chip " + status; chip.textContent = status === "blocked" ? "Ждёт вас" : CHIP[status];
+    $("closeRunBtn").hidden = issue.state === "closed";
+    $("reply").hidden = issue.state === "closed";
+    const attn = $("runAttn");
+    if (status === "queued") { attn.hidden = false; attn.textContent = "GitHub запускает Claude, обычно это занимает до минуты."; }
+    else attn.hidden = true;
+    if (sig !== run.sig) {
+      run.sig = sig;
+      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+      const th = $("thread"); th.replaceChildren();
+      const task = el("div", { class: "msg task" }, el("details", {}, el("summary", { text: "Задание · " + when(issue.created_at) }), el("div", { class: "md" })));
+      task.querySelector(".md").innerHTML = mdHtml(String(issue.body || "").replace(/<!--[\s\S]*?-->/g, ""));
+      th.append(task);
+      for (const c of comments) {
+        const bot = isBot(c.user);
+        const box = el("div", { class: "msg " + (bot ? "claude" : "me") },
+          el("div", { class: "who" }, el("span", { text: bot ? "Claude" : "Вы" }), el("span", { text: when(c.updated_at) })),
+          el("div", { class: "md" }));
+        box.querySelector(".md").innerHTML = mdHtml(bot ? stripHead(c.body) : String(c.body || "").replace(/^@claude\s*/i, ""));
+        box.querySelectorAll("a").forEach((a) => { a.target = "_blank"; a.rel = "noopener"; });
+        th.append(box);
+      }
+      if (atBottom) window.scrollTo(0, document.body.scrollHeight);
+    }
+    const live = status === "queued" || status === "working";
+    st.timer = setTimeout(pollRun, document.hidden ? 30000 : live ? 5000 : 20000);
+  }
+  async function send(text) {
+    text = (text || "").trim(); if (!text || !st.run) return;
+    const b = $("sendBtn"); b.disabled = true;
+    try {
+      await gh(R() + "/issues/" + st.run.number + "/comments", { method: "POST", body: { body: "@claude " + text } });
+      $("msg").value = "";
+      await pollRun();
+      window.scrollTo(0, document.body.scrollHeight);
+    } catch (e) { banner(ghErr(e) + " Сообщение могло не отправиться — проверьте ленту, прежде чем отправлять снова."); }
+    finally { b.disabled = false; }
+  }
+  $("reply").addEventListener("submit", (e) => { e.preventDefault(); send($("msg").value); });
+  $("quick").addEventListener("click", (e) => { const q = e.target.closest("[data-q]"); if (q) send(q.dataset.q); });
+  $("closeRunBtn").onclick = async () => {
+    if (!st.run) return;
+    try { await gh(R() + "/issues/" + st.run.number, { method: "PATCH", body: { state: "closed", state_reason: "completed" } }); await pollRun(); }
+    catch (e) { banner(ghErr(e)); }
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && st.run) pollRun(); });
+
+  /* ---------- settings ---------- */
+  function openSettings() {
+    show("vSettings", "Настройки");
+    $("sRepo").value = st.repo; $("sToken").value = st.token; $("sHint").textContent = "";
+  }
+  $("sSave").onclick = async () => {
+    st.repo = $("sRepo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
+    st.token = $("sToken").value.trim();
+    store.set("repo", st.repo); store.set("token", st.token);
+    $("sHint").className = "hint"; $("sHint").textContent = "Проверяю…";
+    try { await gh(R()); $("sHint").textContent = "Подключено"; await boot(); location.hash = ""; }
+    catch (e) { $("sHint").className = "hint err"; $("sHint").textContent = ghErr(e); }
+  };
+  $("sForget").onclick = () => { st.token = ""; store.set("token", null); $("sToken").value = ""; $("sHint").textContent = "Ключ удалён с устройства"; };
+
+  /* ---------- routing ---------- */
+  function route() {
+    const h = location.hash;
+    if (h === "#settings") return openSettings();
+    const m = /^#run-(\d+)$/.exec(h);
+    if (m) return openRun(+m[1]);
+    show("vHome", project() ? "Пульт · " + project().name : "Пульт");
+    renderHome();
+  }
+  window.addEventListener("hashchange", route);
+  $("backBtn").onclick = () => { if (history.length > 1 && location.hash) history.back(); else location.hash = ""; };
+  $("settingsBtn").onclick = () => { location.hash = "#settings"; };
+  $("refreshBtn").onclick = async () => { if (st.run) return pollRun(); await boot(); };
+
+  async function boot() {
+    if (!st.token) { location.hash = "#settings"; route(); banner("Чтобы начать, вставьте ключ доступа GitHub.", true); return; }
+    banner("");
+    try { await Promise.all([loadConfig(), loadSkills(), loadRuns()]); }
+    catch (e) { banner(ghErr(e)); if (!st.config) st.config = { projects: [] }; }
+    route();
+  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  st.config = { projects: [] };
+  boot();
+})();
+</script>
+</body>
+</html>
